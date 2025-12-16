@@ -88,7 +88,7 @@ def is_valid_word(word: str) -> bool:
     cleaned_word = clean_word(word)
 
     # Skip if empty or too short
-    if not clean_word or len(cleaned_word) < 2:
+    if not cleaned_word or len(cleaned_word) < 2:
         return False
 
     # Skip words that are too long (likely encoded strings)
@@ -114,16 +114,11 @@ def extract_text_from_fb2(fb2_file: str) -> str:
     return ' '.join(text_elements)
 
 
-
-
-
 def extract_and_translate(fb2_file: str, output_file: str):
     text = extract_text_from_fb2(fb2_file)
 
     print("Tokenizing text...")
     words = word_tokenize(text)
-
-    clean_words = set()
 
     print("Collecting unique words...")
     for word in tqdm(words, desc="Processing words"):
@@ -134,11 +129,11 @@ def extract_and_translate(fb2_file: str, output_file: str):
             if parts:  # Only add the compound word if it has valid parts
                 for part in parts:
                     if is_valid_word(part):
-                        base_word = get_base_word(part)
-                        clean_words.add(base_word)
+                        get_base_word(part)
         elif is_valid_word(cleaned_word):
-            base_word = get_base_word(cleaned_word)
-            clean_words.add(base_word)
+            get_base_word(cleaned_word)
+
+    clean_words = set(word_families.values())
 
     print("Saving translations...")
     with open(output_file, 'w', encoding='utf-8') as f:
