@@ -25,10 +25,9 @@ public class BotHandler : BaseHandler
         var version = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion;
 
         var startMessageText = @$"LanguageLab bot.
+Use command /train to start testing from first dictionary in database.
 
-            Use command /train to start testing from first dictionary in database 
-
-            `Версія: {version}`";
+`Версія: {version}`";
         
         await BotClient.SendMessage(chatId: ChatId,
             text: startMessageText,
@@ -44,7 +43,8 @@ public class BotHandler : BaseHandler
         var translation = "кіт";
         var translations = new List<string> { translation, "пес", "авто", "телефон", "місто", "криниця" }.Shuffle().ToList();
         
-        var messageText = "Cat";
+        var messageText = @$"Вибери правильний варіант для слова:
+**Cat**";
 
         var keyboardMarkup = new InlineKeyboardMarkup(new List<List<InlineKeyboardButton>> {
             new List<InlineKeyboardButton> {
@@ -71,7 +71,7 @@ public class BotHandler : BaseHandler
     [CallbackQueryHandler("^train_")]
     public async Task DictWordClicked()
     {
-        await BotClient.AnswerCallbackQuery(CallbackQuery.Id);
+        await BotClient.EditMessageReplyMarkup(ChatId, MessageId, null);
         
         // Parse user id
         var oldWordId = long.Parse(CallbackQuery.Data!.Split('_').Last());
@@ -86,8 +86,10 @@ public class BotHandler : BaseHandler
         var translation = "кіт";
         var translations = new List<string> { translation, "пес", "авто", "телефон", "місто", "криниця" }.Shuffle().ToList();
 
-        var messageText = @$"{resultStr}\n
-        Cat";
+        var messageText = @$"{resultStr}
+
+Вибери правильний варіант для слова:
+**Cat**";
 
         var keyboardMarkup = new InlineKeyboardMarkup(new List<List<InlineKeyboardButton>> {
             new () {
