@@ -23,6 +23,9 @@
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
+      <Content Include="..\compose.yaml">
+        <Link>compose.yaml</Link>
+      </Content>
     </ItemGroup>
 
     <ItemGroup>
