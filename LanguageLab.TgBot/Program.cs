@@ -13,31 +13,31 @@ var botToken = Environment.GetEnvironmentVariable("TELEGRAM_TOKEN")!;
 var botClient = new CoreBot(botToken);
  
 // Create database if not exists
-// var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-// optionsBuilder.UseNpgsql(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")!);
-//
-// var dbContextOptions = optionsBuilder.Options;
-//
-// await using (var dbContext = new ApplicationDbContext(dbContextOptions))
-// {
-//     await dbContext.Database.MigrateAsync();
-//     Console.WriteLine("Database is synchronized");
-// }
+var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+optionsBuilder.UseNpgsql(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")!);
+
+var dbContextOptions = optionsBuilder.Options;
+
+await using (var dbContext = new ApplicationDbContext(dbContextOptions))
+{
+    await dbContext.Database.MigrateAsync();
+    Console.WriteLine("Database is synchronized");
+}
 
 // Register middlewares and handlers
 botClient.RegisterHandler<BotHandler>();
 
 // Register services
-// botClient.RegisterContainers(x =>
-// {
-//     x.Register(ctx => dbContextOptions)
-//         .As<DbContextOptions<ApplicationDbContext>>()
-//         .SingleInstance();
-//
-//     x.RegisterType<ApplicationDbContext>()
-//         .AsSelf()
-//         .InstancePerLifetimeScope();
-// });
+botClient.RegisterContainers(x =>
+{
+    x.Register(ctx => dbContextOptions)
+        .As<DbContextOptions<ApplicationDbContext>>()
+        .SingleInstance();
+
+    x.RegisterType<ApplicationDbContext>()
+        .AsSelf()
+        .InstancePerLifetimeScope();
+});
 
 botClient.Build();
 
