@@ -16,7 +16,6 @@ LogManager.Setup().LoadConfiguration(builder => {
 
 var logger = LogManager.GetCurrentClassLogger();
 
-logger.Debug("Starting LanguaDebugDebugDebuggeLabBot");
 logger.Info("Starting LanguageLabBot");
 
 var botToken = Environment.GetEnvironmentVariable("TELEGRAM_TOKEN")!;
