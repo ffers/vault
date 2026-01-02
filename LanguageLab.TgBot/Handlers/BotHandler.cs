@@ -30,7 +30,10 @@ public class BotHandler : BaseHandler
         var startMessageText = @$"LanguageLab bot.
 Use command /train to start testing from first dictionary in database.
 Use command /list to see all available dictionaries.
-Send csv file with word pairs (WITHOUT HEADER) to add new dictionary (only for admins).
+
+**Add new dictionary (admins only):**
+- Send CSV file with word pairs (format: word,translation WITHOUT HEADER)
+- Send FB2 book file - bot will auto-extract and translate words
 
 `Bot version: {version}`";
         
@@ -71,9 +74,9 @@ Send csv file with word pairs (WITHOUT HEADER) to add new dictionary (only for a
                 parseMode: ParseMode.Markdown);
             return;
         }
-        
+
         var document = Message.Document!;
-        
+
         // Check document size
         if (document.FileSize > 1024 * 1024 * 10)
         {
@@ -82,12 +85,23 @@ Send csv file with word pairs (WITHOUT HEADER) to add new dictionary (only for a
                 parseMode: ParseMode.Markdown);
             return;
         }
-        
-        // Check file extension
+
+        // Check if it's an FB2 file
+        var isFb2 = document.FileName?.EndsWith(".fb2", StringComparison.OrdinalIgnoreCase) == true ||
+                    document.MimeType == "application/xml" ||
+                    document.MimeType == "text/xml";
+
+        if (isFb2)
+        {
+            await ProcessFB2Book(document);
+            return;
+        }
+
+        // Check file extension for CSV
         if (document.MimeType != "text/plain")
         {
             await BotClient.SendMessage(chatId: ChatId,
-                text: "Unsupported file format. Only text files are allowed",
+                text: "Unsupported file format. Only CSV (text/plain) and FB2 files are allowed",
                 parseMode: ParseMode.Markdown);
             return;
         }
@@ -137,7 +151,125 @@ Send csv file with word pairs (WITHOUT HEADER) to add new dictionary (only for a
 
         await BotClient.SendMessage(ChatId, $"Словник '{dictionary.Name}' успішно створено! Додано {wordPairs.Count} слів.");
     }
-    
+
+    private async Task ProcessFB2Book(Telegram.Bot.Types.Document document)
+    {
+        await BotClient.SendMessage(ChatId, "📚 Обробляю FB2 книгу... Це може зайняти кілька хвилин.");
+
+        // Create temp directory if it doesn't exist
+        var tempDir = Path.Combine(Path.GetTempPath(), "languagelab");
+        Directory.CreateDirectory(tempDir);
+
+        var fb2FilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}.fb2");
+        var csvFilePath = Path.Combine(tempDir, $"{Guid.NewGuid()}.csv");
+
+        try
+        {
+            // Download FB2 file
+            var file = await BotClient.GetFile(document.FileId);
+            await using (var fileStream = System.IO.File.Create(fb2FilePath))
+            {
+                await BotClient.DownloadFile(file.FilePath!, fileStream);
+            }
+
+            await BotClient.SendMessage(ChatId, "⚙️ Екстрактую слова та перекладаю...");
+
+            // Run Python script to process FB2
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = "python3",
+                Arguments = $"process_fb2.py \"{fb2FilePath}\" \"{csvFilePath}\" 500",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(processStartInfo);
+            if (process == null)
+            {
+                await BotClient.SendMessage(ChatId, "❌ Помилка запуску обробника FB2");
+                return;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                await BotClient.SendMessage(ChatId, $"❌ Помилка обробки FB2:\n{error}");
+                return;
+            }
+
+            // Check if CSV file was created
+            if (!System.IO.File.Exists(csvFilePath))
+            {
+                await BotClient.SendMessage(ChatId, "❌ Не вдалося створити словник з книги");
+                return;
+            }
+
+            // Read CSV and create dictionary
+            var csvContent = await System.IO.File.ReadAllTextAsync(csvFilePath);
+            var lines = csvContent.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            var wordPairs = new List<LanguageLab.Domain.Entities.WordPair>();
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split([','], 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    wordPairs.Add(new LanguageLab.Domain.Entities.WordPair
+                    {
+                        Word = parts[0].Trim().Trim('"'),
+                        Translation = parts[1].Trim().Trim('"')
+                    });
+                }
+            }
+
+            if (wordPairs.Count == 0)
+            {
+                await BotClient.SendMessage(ChatId, "❌ Не вдалося знайти слова у книзі");
+                return;
+            }
+
+            // Create dictionary
+            var bookName = document.FileName ?? "FB2 Book";
+            var dictionary = new LanguageLab.Domain.Entities.Dictionary
+            {
+                Name = bookName,
+                WordsCount = wordPairs.Count,
+                Words = wordPairs
+            };
+
+            _dbContext.Dictionaries.Add(dictionary);
+            await _dbContext.SaveChangesAsync();
+
+            await BotClient.SendMessage(ChatId,
+                $"✅ Словник '{dictionary.Name}' успішно створено!\n" +
+                $"📖 Додано {wordPairs.Count} слів з автоматичним перекладом.");
+        }
+        catch (Exception ex)
+        {
+            await BotClient.SendMessage(ChatId, $"❌ Помилка обробки FB2: {ex.Message}");
+        }
+        finally
+        {
+            // Cleanup temp files
+            try
+            {
+                if (System.IO.File.Exists(fb2FilePath))
+                    System.IO.File.Delete(fb2FilePath);
+                if (System.IO.File.Exists(csvFilePath))
+                    System.IO.File.Delete(csvFilePath);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+    }
+
     [MessageReaction(ChatAction.Typing)]
     [MessageHandler("^/train")]
     public async Task Train()

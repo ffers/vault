@@ -10,7 +10,8 @@ Telegram bot for learn new words
 
 ### TODO:
 * [x] .fb2 Words extractor (extract words in base form and export)
-* [ ] english words translator and export
+* [x] english words translator and export
+* [x] Automatic FB2 book processing in Telegram bot
 * [x] docker compose file
 * [x] Database with migrations for telegram bot
 * [x] Telegram bot -> dictionary list
@@ -32,6 +33,19 @@ Use next environment variables:
 
 **Docker compose:**  create `.env` file and fill it with that variables.
 
+#### Features:
+
+**Automatic Dictionary Creation from FB2 Books:**
+- Send an FB2 (FictionBook 2.0) file to the bot
+- Bot automatically extracts vocabulary (up to 500 unique words)
+- Words are lemmatized to their base forms
+- Automatic translation to Ukrainian using Google Translate
+- Dictionary is created and ready for training
+
+**Manual CSV Upload:**
+- Send a CSV file with format: `word,translation` (no header)
+- Each line represents a word pair
+
 ## Run
 
 ```
@@ -46,17 +60,31 @@ Postgresql database is required.
 dotnet ef --project LanguageLab.Infrastructure --startup-project LanguageLab.TgBot migrations add {migrationName}
 ```
 
-## Python environment
+## Python Scripts
+
+**Standalone tools for local processing:**
+
+### `extract.py`
+Extract words in base form from FB2 file and save to txt file (without translations).
+
+### `process_fb2.py`
+Complete FB2 processing with automatic translation to Ukrainian.
 
 ```bash
-pip install uv
-uv init
-uv sync
-uv pip install -r requirements.txt
-uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.0.0/en_core_web_sm-3.0.0.tar.gz
-uv run extract.py 
-uv run sort_words.py
+# Install dependencies
+pip install -r requirements.txt
+
+# Process FB2 book and generate CSV with translations
+python3 process_fb2.py <fb2_file> [output_csv] [max_words]
+
+# Example:
+python3 process_fb2.py mybook.fb2 dictionary.csv 500
 ```
 
-`extract.py` - extract words in base from fb2 file and save to txt file
+**Parameters:**
+- `fb2_file` - Path to FB2 file to process
+- `output_csv` - Output CSV file path (default: output.csv)
+- `max_words` - Maximum number of words to process (default: 500)
+
+**Note:** These scripts are also integrated into the Docker container and used automatically by the Telegram bot.
 
